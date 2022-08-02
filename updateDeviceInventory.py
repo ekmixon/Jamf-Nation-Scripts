@@ -173,8 +173,8 @@ class Utils:
     @staticmethod
     def getAuthHeader(u,p):
         # Compute base64 representation of the authentication token.
-        token = base64.b64encode('%s:%s' % (u,p))
-        return "Basic %s" % token
+        token = base64.b64encode(f'{u}:{p}')
+        return f"Basic {token}"
 
 
 #Force TLS since the JSS now requires TLS+ due to the POODLE vulnerability

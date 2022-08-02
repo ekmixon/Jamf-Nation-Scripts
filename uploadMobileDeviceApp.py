@@ -185,257 +185,251 @@ app_meta_data = None				#App meta data xml file
 
 # Initialize...
 def initAll():
-	global values
-	global hasAppData
-	global hasProvProfData
-	
-	hasAppData = False
-	hasProvProfData = False
-		
-	numArgs = None
-	# This will determine if script will use param arguments or hard coded values
-	if len(argv) > 1:
-		argv.pop(0) 
-		assignParamValues() # Store arguments into dictionary
-		numArgs = len(argv)
-	else:
-		assignHardValues()
+    global values
+    global hasAppData
+    global hasProvProfData
 
-	if values.get('-appName') != "" and values.get('-pathToIPA') != "" and values.get('-pathToIcon') != "":
-		hasAppData = True
-	if values.get('-provisionProfName') != "" and values.get('-pathToProvisionProfile') != "":
-		hasProvProfData = True
-		
-	if hasProvProfData == True and hasAppData == True: # Submitting mobile app & Provisioning Profile	
-		if testConn():
-			log("Submitting mobile app and Provisioning Profile...")
-			# Check Provisioning Profile and upload accordingly
-			exists = checkForExistingProfile()
-			if not exists:
-				uploadProfile()
-			
-			# Check mobile app and upload accordingly
-			appExists = checkForExistingApp()
-			uploadAppMetaData(appExists)
-			mobileAppID = findAppID(values.get('-appName'))
-			uploadAppIcon(mobileAppID)
-			uploadAppIPA(mobileAppID)
-		else:
-			log('Connection to JSS failed. Please check your credentials.')
-			sys.exit()
-		
-	elif hasProvProfData == False and hasAppData == True: # Submitting mobile app
-		if testConn():
-			log("Submitting mobile app...")
-			# Check mobile app and upload accordingly
-			appExists = checkForExistingApp()
-			uploadAppMetaData(appExists)
-			mobileAppID = findAppID(values.get('-appName'))
-			uploadAppIcon(mobileAppID)
-			uploadAppIPA(mobileAppID)
-		else:
-			log('Connection to JSS failed. Please check your credentials.')
-			sys.exit()
-			
-	elif hasProvProfData == True and hasAppData == False: # Submitting Provisioning Profile
-		if testConn():
-			log("Submitting Provisioning Profile...")
-			
-			# Check Provisioning Profile and upload accordingly
-			exists = checkForExistingProfile()
-			if not exists:
-				uploadProfile()
-		else:
-			log('Connection to JSS failed. Please check your credentials.')
-			sys.exit()
-			
-	elif argv[0] == "-h" or argv[0] == "-help" or argv[0] == "help":
-		help()
+    numArgs = None
+    # This will determine if script will use param arguments or hard coded values
+    if len(argv) > 1:
+    	argv.pop(0) 
+    	assignParamValues() # Store arguments into dictionary
+    	numArgs = len(argv)
+    else:
+    	assignHardValues()
+
+    hasAppData = (
+        values.get('-appName') != ""
+        and values.get('-pathToIPA') != ""
+        and values.get('-pathToIcon') != ""
+    )
+
+    hasProvProfData = (
+        values.get('-provisionProfName') != ""
+        and values.get('-pathToProvisionProfile') != ""
+    )
+
+    if hasProvProfData and hasAppData: # Submitting mobile app & Provisioning Profile	
+        if testConn():
+        	log("Submitting mobile app and Provisioning Profile...")
+        	# Check Provisioning Profile and upload accordingly
+        	exists = checkForExistingProfile()
+        	if not exists:
+        		uploadProfile()
+
+        	# Check mobile app and upload accordingly
+        	appExists = checkForExistingApp()
+        	uploadAppMetaData(appExists)
+        	mobileAppID = findAppID(values.get('-appName'))
+        	uploadAppIcon(mobileAppID)
+        	uploadAppIPA(mobileAppID)
+        else:
+        	log('Connection to JSS failed. Please check your credentials.')
+        	sys.exit()
+
+    elif not hasProvProfData and hasAppData: # Submitting mobile app
+        if testConn():
+        	log("Submitting mobile app...")
+        	# Check mobile app and upload accordingly
+        	appExists = checkForExistingApp()
+        	uploadAppMetaData(appExists)
+        	mobileAppID = findAppID(values.get('-appName'))
+        	uploadAppIcon(mobileAppID)
+        	uploadAppIPA(mobileAppID)
+        else:
+        	log('Connection to JSS failed. Please check your credentials.')
+        	sys.exit()
+
+    elif hasProvProfData: # Submitting Provisioning Profile
+        if testConn():
+        	log("Submitting Provisioning Profile...")
+
+        	# Check Provisioning Profile and upload accordingly
+        	exists = checkForExistingProfile()
+        	if not exists:
+        		uploadProfile()
+        else:
+        	log('Connection to JSS failed. Please check your credentials.')
+        	sys.exit()
+
+    elif argv[0] in ["-h", "-help", "help"]:
+        help()
 
 def checkForExistingProfile():
-	global values, profile
-	try: 
-		log("Checking if the profile already exists...")
-		#See if the profile name already exist
-		conn = httplib.HTTPSConnection(values.get("-jssHost"),values.get("-jssPort"))
-		headers = {"Authorization":getAuthHeader(values.get("-jssUser"),values.get("-jssPass")),"Accept":"text/xml"}
-	    #Convert the string to a URL friendly syntax ("%20" instead of a " ", etc.)
-		path = ""
-		if values.get('-jssPath' ) != None:
-			path = values.get('-jssPath' )
-		url = convertStringToURL(path + "/JSSResource/mobiledeviceprovisioningprofiles/name/" + values.get("-provisionProfName"))
-		conn.request("GET",url,None,headers)
-		response = conn.getresponse()
-		xmldata = response.read()
-		stat = response.status #works
-		conn.close()
-	
-		if stat == 200:
-			profile.name = parseXML(xmldata, "display_name")
-			profile.id = parseXML(xmldata, "id")
-			profile.uuid = parseXML(xmldata, "uuid")
-			log("\tProfile exists. Using existing profile \"" + profile.name + "\"...")
-			return True
-		else:
-			return False
-		
-	except urllib2.HTTPError as inst:
-		log("Exception occurred: %s" % inst)
+    global values, profile
+    try: 
+        log("Checking if the profile already exists...")
+        #See if the profile name already exist
+        conn = httplib.HTTPSConnection(values.get("-jssHost"),values.get("-jssPort"))
+        headers = {"Authorization":getAuthHeader(values.get("-jssUser"),values.get("-jssPass")),"Accept":"text/xml"}
+        path = values.get('-jssPath' ) if values.get('-jssPath' ) != None else ""
+        url = convertStringToURL(
+            f"{path}/JSSResource/mobiledeviceprovisioningprofiles/name/"
+            + values.get("-provisionProfName")
+        )
+
+        conn.request("GET",url,None,headers)
+        response = conn.getresponse()
+        xmldata = response.read()
+        stat = response.status #works
+        conn.close()
+
+        if stat == 200:
+        	profile.name = parseXML(xmldata, "display_name")
+        	profile.id = parseXML(xmldata, "id")
+        	profile.uuid = parseXML(xmldata, "uuid")
+        	log("\tProfile exists. Using existing profile \"" + profile.name + "\"...")
+        	return True
+        else:
+        	return False
+
+    except urllib2.HTTPError as inst:
+        log(f"Exception occurred: {inst}")
   
 def uploadProfile():
-	global values, profile
-	log("Uploading Provisioning Profile...")
-	if profile.name is None:
-		prov_profile_name = cleanForXML(values.get("-provisionProfName"))
-		#Open File and Convert to Base64
-		profileContent = open(values.get("-pathToProvisionProfile")).read().encode("base64")
-		#Get the file name of the profile based on the full path
-		profileFileName = os.path.basename(values.get("-pathToProvisionProfile"))	
-		#Read in the UUID of the profile
-		profileUUID = commands.getoutput("cat -v \"" + values.get("-pathToProvisionProfile") + "\" | grep -A 1 UUID | grep string | sed 's:<string>::g' | sed 's:</string>::g' | awk '{print $1}'")
-	else:
-		prov_profile_name = cleanForXML(profile.name)
-		profileUUID = profile.uuid
-		profileContent = open(values.get("-pathToProvisionProfile")).read().encode("base64")
-		profileFileName = os.path.basename(values.get("-pathToProvisionProfile"))
-		
-	path = ""
-	if values.get('-jssPath' ) != None:
-		path = values.get('-jssPath' )
+    global values, profile
+    log("Uploading Provisioning Profile...")
+    if profile.name is None:
+    	prov_profile_name = cleanForXML(values.get("-provisionProfName"))
+    	#Open File and Convert to Base64
+    	profileContent = open(values.get("-pathToProvisionProfile")).read().encode("base64")
+    	#Get the file name of the profile based on the full path
+    	profileFileName = os.path.basename(values.get("-pathToProvisionProfile"))	
+    	#Read in the UUID of the profile
+    	profileUUID = commands.getoutput("cat -v \"" + values.get("-pathToProvisionProfile") + "\" | grep -A 1 UUID | grep string | sed 's:<string>::g' | sed 's:</string>::g' | awk '{print $1}'")
+    else:
+    	prov_profile_name = cleanForXML(profile.name)
+    	profileUUID = profile.uuid
+    	profileContent = open(values.get("-pathToProvisionProfile")).read().encode("base64")
+    	profileFileName = os.path.basename(values.get("-pathToProvisionProfile"))
 
-	url = "https://" + str(values.get("-jssHost")) + ":" + str(values.get("-jssPort")) + path + "/JSSResource/mobiledeviceprovisioningprofiles/id/0"
-	#Write out the XML string with new data to be submitted
-	newDataString = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?><mobile_device_provisioning_profile><general><id/><display_name>" + prov_profile_name + "</display_name><uuid>" + profileUUID + "</uuid><profile><name>" + profileFileName + "</name><uri/><data>" + profileContent + "</data></profile></general></mobile_device_provisioning_profile>"
-	#print newDataString
-	try:
-		opener = urllib2.build_opener(urllib2.HTTPHandler)
-		request = urllib2.Request(url,newDataString)
-		request.add_header("Authorization", getAuthHeader(values.get("-jssUser"),values.get("-jssPass")))
-		request.add_header('Content-Type', 'application/xml')
-		request.get_method = lambda: 'POST'
-		opener.open(request)
-		
-		if profile.name is None:
-			checkForExistingProfile()
-	except urllib2.HTTPError as inst:
-		log("Exception occurred: %s" % inst)
-	except:
-		log("An error occurred uploading provisioning profile.")
+    path = values.get('-jssPath' ) if values.get('-jssPath' ) != None else ""
+    url = "https://" + str(values.get("-jssHost")) + ":" + str(values.get("-jssPort")) + path + "/JSSResource/mobiledeviceprovisioningprofiles/id/0"
+    #Write out the XML string with new data to be submitted
+    newDataString = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?><mobile_device_provisioning_profile><general><id/><display_name>" + prov_profile_name + "</display_name><uuid>" + profileUUID + "</uuid><profile><name>" + profileFileName + "</name><uri/><data>" + profileContent + "</data></profile></general></mobile_device_provisioning_profile>"
+    	#print newDataString
+    try:
+        opener = urllib2.build_opener(urllib2.HTTPHandler)
+        request = urllib2.Request(url,newDataString)
+        request.add_header("Authorization", getAuthHeader(values.get("-jssUser"),values.get("-jssPass")))
+        request.add_header('Content-Type', 'application/xml')
+        request.get_method = lambda: 'POST'
+        opener.open(request)
+
+        if profile.name is None:
+        	checkForExistingProfile()
+    except urllib2.HTTPError as inst:
+        log(f"Exception occurred: {inst}")
+    except:
+    	log("An error occurred uploading provisioning profile.")
 
          
 def checkForExistingApp():
-	global values
-	log("Checking if the app already exists...")
-	try:
-		conn = httplib.HTTPSConnection(values.get("-jssHost"),values.get("-jssPort"))
-		headers = {"Authorization":getAuthHeader(values.get("-jssUser"),values.get("-jssPass")),"Accept":"text/xml"}
-		
-		path = ""
-		if values.get('-jssPath' ) != None:
-			path = values.get('-jssPath' )
-	
-		url = convertStringToURL(path + "/JSSResource/mobiledeviceapplications/name/" + values.get("-appName"))
-		conn.request("GET",url,None,headers)
+    global values
+    log("Checking if the app already exists...")
+    try:
+        conn = httplib.HTTPSConnection(values.get("-jssHost"),values.get("-jssPort"))
+        headers = {"Authorization":getAuthHeader(values.get("-jssUser"),values.get("-jssPass")),"Accept":"text/xml"}
+
+        path = values.get('-jssPath' ) if values.get('-jssPath' ) != None else ""
+        url = convertStringToURL(
+            f"{path}/JSSResource/mobiledeviceapplications/name/"
+            + values.get("-appName")
+        )
+
+        conn.request("GET",url,None,headers)
 	    #Get xml list of apps from JSS
-		xmldata = conn.getresponse().read()
-		conn.close()
-	
-		if "<html>" in xmldata:
-			log("\tApp does not exist")
-			return False
-		else:
-			log("\tApp exists.  Existing app will be updated.")
-			return True
-		
-	except urllib2.HTTPError as inst:
-		log("HTTP Exception Occurred: " + str(inst))
+        xmldata = conn.getresponse().read()
+        conn.close()
+
+        if "<html>" in xmldata:
+        	log("\tApp does not exist")
+        	return False
+        else:
+        	log("\tApp exists.  Existing app will be updated.")
+        	return True
+
+    except urllib2.HTTPError as inst:
+        log(f"HTTP Exception Occurred: {str(inst)}")
        
 def uploadAppIPA(mobileAppID):
-	global values
-	
-	try:
-		if os.path.exists(values.get('-pathToIPA')):
-			path = ""
-			if values.get('-jssPath' ) != None:
-				path = values.get('-jssPath' )
-				
-			log("Updating mobile app IPA for app " + values.get('-appName'))
-			results = commands.getoutput("curl -v -k -u " + values.get("-jssUser") + ":" + values.get("-jssPass") + " https://" + values.get("-jssHost") + ":" + str(values.get("-jssPort")) + path + "/JSSResource/fileuploads/mobiledeviceapplicationsipa/id/" + mobileAppID + " -F name=@" + values.get("-pathToIPA") + " -X POST ")
-			
-			if "201 Created" in results:
-				log("\tUploaded mobile app IPA \"" + values.get('-appName') + "\" successfully.")
-			else:
-				m = re.compile('<p.*?>(.*?)</p>', re.DOTALL).findall(results[2470:])
-				log("\tError uploading mobile app IPA: " + m[0] + " - " + m[1]) 
-	
-		else:
-			log('Could not update mobile app. The -pathToIPA value could not be evaluated.')
-			
-	except Exception as inst:
-	 	log("An error occurred updating mobile app IPA: " + str(inst))
+    global values
+
+    try:
+        if os.path.exists(values.get('-pathToIPA')):
+            path = values.get('-jssPath' ) if values.get('-jssPath' ) != None else ""
+            log("Updating mobile app IPA for app " + values.get('-appName'))
+            results = commands.getoutput("curl -v -k -u " + values.get("-jssUser") + ":" + values.get("-jssPass") + " https://" + values.get("-jssHost") + ":" + str(values.get("-jssPort")) + path + "/JSSResource/fileuploads/mobiledeviceapplicationsipa/id/" + mobileAppID + " -F name=@" + values.get("-pathToIPA") + " -X POST ")
+
+            if "201 Created" in results:
+            	log("\tUploaded mobile app IPA \"" + values.get('-appName') + "\" successfully.")
+            else:
+            	m = re.compile('<p.*?>(.*?)</p>', re.DOTALL).findall(results[2470:])
+            	log("\tError uploading mobile app IPA: " + m[0] + " - " + m[1]) 
+
+        else:
+            log('Could not update mobile app. The -pathToIPA value could not be evaluated.')
+
+    except Exception as inst:
+        log(f"An error occurred updating mobile app IPA: {str(inst)}")
 	
 def uploadAppIcon(mobileAppID):
-	global values
-	
-	try:
-		if os.path.exists(values.get('-pathToIcon')):
-			
-			path = ""
-			if values.get('-jssPath' ) != None:
-				path = values.get('-jssPath' )
-			
-			log("Updating mobile app icon for app " + values.get('-appName'))
-			results = commands.getoutput("curl -k -v -u " + values.get("-jssUser") + ":" + values.get("-jssPass") + " https://" + values.get("-jssHost") + ":" + str(values.get("-jssPort")) + path + "/JSSResource/fileuploads/mobiledeviceapplicationsicon/id/" + mobileAppID + " -F name=@" + values.get("-pathToIcon") + " -X POST ")
-	
-			if "201 Created" in results:
-				log("\tUploaded mobile app icon \"" + values.get('-appName') + "\" successfully.")
-			else:
-				m = re.compile('<p.*?>(.*?)</p>', re.DOTALL).findall(results)
-				log("\tError uploading mobile app icon: " + m[0] + " - " + m[1]) 
-			
-		else:
-			log('Could not update mobile app. The -pathToIcon value could not be evaluated.')
-			
-	except Exception as inst:
-		log("An error occurred updating mobile app icon: " + str(inst))
+    global values
+
+    try:
+        if os.path.exists(values.get('-pathToIcon')):
+        			
+            path = values.get('-jssPath' ) if values.get('-jssPath' ) != None else ""
+            log("Updating mobile app icon for app " + values.get('-appName'))
+            results = commands.getoutput("curl -k -v -u " + values.get("-jssUser") + ":" + values.get("-jssPass") + " https://" + values.get("-jssHost") + ":" + str(values.get("-jssPort")) + path + "/JSSResource/fileuploads/mobiledeviceapplicationsicon/id/" + mobileAppID + " -F name=@" + values.get("-pathToIcon") + " -X POST ")
+
+            if "201 Created" in results:
+            	log("\tUploaded mobile app icon \"" + values.get('-appName') + "\" successfully.")
+            else:
+            	m = re.compile('<p.*?>(.*?)</p>', re.DOTALL).findall(results)
+            	log("\tError uploading mobile app icon: " + m[0] + " - " + m[1]) 
+
+        else:
+            log('Could not update mobile app. The -pathToIcon value could not be evaluated.')
+
+    except Exception as inst:
+        log(f"An error occurred updating mobile app icon: {str(inst)}")
 
 def uploadAppMetaData(appExists):
-	global values
-	newDataString = None
-	
-	# Determining XML data
-	if appExists:
-		newDataString = str(createMetaDataXML('PUT'))
-	else:
-		newDataString = str(createMetaDataXML('POST'))
-		
-	path = ''
-	if values.get('-jssPath' ) != None:
-		path = values.get('-jssPath' )
-	url = "https://" + str(values.get("-jssHost")) + ":" + str(values.get("-jssPort")) + path + "/JSSResource/mobiledeviceapplications/name/" + convertStringToURL(values.get('-appName'))
+    global values
+    newDataString = None
 
-	try:
-	    opener = urllib2.build_opener(urllib2.HTTPHandler)
-	    request = urllib2.Request(url,newDataString)
-	    request.add_header("Authorization", getAuthHeader(values.get("-jssUser"),values.get("-jssPass")))
-	    request.add_header('Content-Type', 'application/xml')
+    # Determining XML data
+    if appExists:
+    	newDataString = str(createMetaDataXML('PUT'))
+    else:
+    	newDataString = str(createMetaDataXML('POST'))
 
-	    if appExists:
-	        #Update existing app
-	        request.get_method = lambda: 'PUT'
-	        log("Updating mobile app meta data...")
+    path = values.get('-jssPath' ) if values.get('-jssPath' ) != None else ''
+    url = "https://" + str(values.get("-jssHost")) + ":" + str(values.get("-jssPort")) + path + "/JSSResource/mobiledeviceapplications/name/" + convertStringToURL(values.get('-appName'))
 
-	    else:
-	        #Create new app
-	        request.get_method = lambda: 'POST'
-	        log("Uploading mobile app meta data...")
-	        
-	    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
-	    opener.open(request)
-	except urllib2.HTTPError as inst:
-		log("Exception Occurred: " + str(inst))
-	except Exception as inst:
-		log ("An error occurred uploading mobile device meta data: " + str(inst))
+    try:
+        opener = urllib2.build_opener(urllib2.HTTPHandler)
+        request = urllib2.Request(url,newDataString)
+        request.add_header("Authorization", getAuthHeader(values.get("-jssUser"),values.get("-jssPass")))
+        request.add_header('Content-Type', 'application/xml')
+
+        if appExists:
+            #Update existing app
+            request.get_method = lambda: 'PUT'
+            log("Updating mobile app meta data...")
+
+        else:
+            #Create new app
+            request.get_method = lambda: 'POST'
+            log("Uploading mobile app meta data...")
+
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+        opener.open(request)
+    except urllib2.HTTPError as inst:
+        log(f"Exception Occurred: {str(inst)}")
+    except Exception as inst:
+        log(f"An error occurred uploading mobile device meta data: {str(inst)}")
 
 ## HELPER FUNCTIONS ##
 
@@ -505,81 +499,73 @@ def help():
 	print "\t\t-provisionProfName [provision_profile_name] -pathToProvisionProfile [provision_profile_path]\n"
 		
 def findAppID(appname):
-	global values
-	log("Looking for mobile app ID...")
-	conn = httplib.HTTPSConnection(values.get('-jssHost'),values.get('-jssPort'))
-	headers = {"Authorization":getAuthHeader(values.get('-jssUser'),values.get('-jssPass')),"Accept":"text/xml"}
+    global values
+    log("Looking for mobile app ID...")
+    conn = httplib.HTTPSConnection(values.get('-jssHost'),values.get('-jssPort'))
+    headers = {"Authorization":getAuthHeader(values.get('-jssUser'),values.get('-jssPass')),"Accept":"text/xml"}
     #Convert the string to a URL friendly syntax ("%20" instead of a " ", etc.)
-	try:	
-		if appname != None:
-			path = ""
-			if values.get('-jssPath' ) != None:
-				path = values.get('-jssPath' )
-						
-			url = convertStringToURL(path + "/JSSResource/mobiledeviceapplications")
-			conn.request("GET",url,None,headers)
-			xmldata = conn.getresponse().read()
-			conn.close()
-			xmldoc = minidom.parseString(xmldata)
-			names = xmldoc.getElementsByTagName("display_name")
-			id = None
-			for name in names:
-				if re.sub('<(?!(?:a\s|/a|!))[^>]*>','',name.toxml()) == appname:
-					id = re.sub('<(?!(?:a\s|/a|!))[^>]*>','',name.parentNode.firstChild.toxml())
-					log("Found ID " + str(id) + " for " + appname + ".")
-			
-			return id
-		else:
-			log("The provided app name is null.")
-			
-	except urllib2.HTTPError as inst:
-		log("\tYou provided incorrect authentication.")
-		sys.exit()
+    try:	
+        if appname != None:
+            path = values.get('-jssPath' ) if values.get('-jssPath' ) != None else ""
+            url = convertStringToURL(f"{path}/JSSResource/mobiledeviceapplications")
+            conn.request("GET",url,None,headers)
+            xmldata = conn.getresponse().read()
+            conn.close()
+            xmldoc = minidom.parseString(xmldata)
+            names = xmldoc.getElementsByTagName("display_name")
+            id = None
+            for name in names:
+                if re.sub('<(?!(?:a\s|/a|!))[^>]*>','',name.toxml()) == appname:
+                    id = re.sub('<(?!(?:a\s|/a|!))[^>]*>','',name.parentNode.firstChild.toxml())
+                    log(f"Found ID {str(id)} for {appname}.")
+
+            return id
+        else:
+            log("The provided app name is null.")
+
+    except urllib2.HTTPError as inst:
+    	log("\tYou provided incorrect authentication.")
+    	sys.exit()
 
 def testConn():
-	global values
-	log('Testing JSS connection...')
-	path = ""
-	if values.get('-jssPath' ) != None:
-		path = values.get('-jssPath' )
-	url = values.get('-jssHost') + path
-	conn = httplib.HTTPSConnection(url, values.get('-jssPort'))
-	headers = {"Authorization":getAuthHeader(values.get('-jssUser'),values.get('-jssPass'))}
-	conn.request("GET", "/JSSResource/mobiledeviceapplications", "",headers)
-	response = conn.getresponse()
- 	if response.reason == 'Unauthorized':
- 		log("Return code from JSS: " + str(response.status) + " " + response.reason)
- 		return False
- 	else:
- 		return True
+    global values
+    log('Testing JSS connection...')
+    path = values.get('-jssPath' ) if values.get('-jssPath' ) != None else ""
+    url = values.get('-jssHost') + path
+    conn = httplib.HTTPSConnection(url, values.get('-jssPort'))
+    headers = {"Authorization":getAuthHeader(values.get('-jssUser'),values.get('-jssPass'))}
+    conn.request("GET", "/JSSResource/mobiledeviceapplications", "",headers)
+    response = conn.getresponse()
+    if response.reason != 'Unauthorized':
+        return True
+    log(f"Return code from JSS: {str(response.status)} {response.reason}")
+    return False
 
 def getAuthHeader(u,p):
     # Compute base64 representation of the authentication token.
-    token = base64.b64encode('%s:%s' % (u,p))
-    return "Basic %s" % token
+    token = base64.b64encode(f'{u}:{p}')
+    return f"Basic {token}"
 
 def convertStringToURL(string):
-    url = urllib2.quote(string)
-    return url
+    return urllib2.quote(string)
 
 def parseXML(xmldata, tagName):
     values=[];
-    cleanedValues=[];
     data = None
     xmldoc = minidom.parseString(xmldata)
-    values = xmldoc.getElementsByTagName(tagName)
-    if values:
-		for index, value in enumerate(values):
-			cleanedValue = re.sub('<(?!(?:a\s|/a|!))[^>]*>','',value.toxml())
-			cleanedValues.append(cleanedValue)
-		#Return the first match
-		data = cleanedValues[0]
-		return data
+    if values := xmldoc.getElementsByTagName(tagName):
+        cleanedValues=[];
+        for value in values:
+            cleanedValue = re.sub('<(?!(?:a\s|/a|!))[^>]*>','',value.toxml())
+            cleanedValues.append(cleanedValue)
+        #Return the first match
+        data = cleanedValues[0]
+        return data
 
 def cleanForXML(value):
     value = str(value).replace("&", "&amp;")
-    value = str(value).replace("<", "&lt;")
-    value = str(value).replace(">", "&gt;")
+    value = value.replace("<", "&lt;")
+    value = value.replace(">", "&gt;")
     return value
 
 def createMetaDataXML(method):
